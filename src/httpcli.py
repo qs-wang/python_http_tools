@@ -5,10 +5,11 @@ import requests
 from config import parse_config, create_config, get_config_dict
 import json
 import logging
+import cuid
 
 # set up logging
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"),
-                    format="[%(asctime)s - %(filename)s:%(lineno)s - %(funcName)s()]-12s %(levelname)-8s %(message)s'))",
+                    format="[%(asctime)s - %(filename)s:%(lineno)s - %(funcName)s()]-12s %(levelname)-8s %(message)s))",
                     datefmt="%m-%d %H:%M")
 
 logger = logging.getLogger('my-http-cli')
@@ -48,6 +49,7 @@ def config(key, value, profile):
 @click.argument("user", default="")
 @click.option("--profile", "-p", default="DEFAULT", help="The profile name")
 def login(user, profile):
+    logger.debug("The profile is {}".format(profile))
     user_name = user
     config = parse_config(CONFIG_PATH)
     config_dict = get_config_dict(config, profile)
@@ -62,8 +64,15 @@ def login(user, profile):
 
     if "auth_url" in config_dict:
         auth_url = config_dict["auth_url"]
+
+        headers = {
+            "X-Correlation-Id": cuid.cuid()
+        }
+
+        logger.debug("Auth url is {}".format( auth_url))
+
         result = requests.post(
-            auth_url , data={"username": user_name, "password": password}, verify=False)
+            auth_url , data={"username": user_name, "password": password}, verify=False, headers=headers)
 
         if result.status_code != 200:
             logger.debug("Login failed with result:{}".format(result))
@@ -94,10 +103,15 @@ def gt(location, file_name, profile):
 
     if "root_url" in config_dict:
         root_url = config_dict["root_url"]
-        endpoint = root_url + "/" + location
-        headers = {'authorization': 'Bearer ' + config_dict["token"]}
+        end_point = root_url + "/" + location
+        headers = {
+            'authorization': 'Bearer ' + config_dict["token"],
+            'X-Correlation-Id': cuid.cuid()
+        }
 
-        result = requests.get(endpoint, headers=headers, verify=False)
+        logger.debug("Endpoint url is {}".format( end_point))
+
+        result = requests.get(end_point, headers=headers, verify=False)
 
         if result.status_code != 200:
             logger.debug("Get failed with result:{}".format(result))
@@ -124,8 +138,13 @@ def pt(location, file_name, profile):
 
     if "root_url" in config_dict:
         root_url = config_dict["root_url"]
-        endpoint = root_url + "/" + location
-        headers = {'authorization': 'Bearer ' + config_dict["token"]}
+        end_point = root_url + "/" + location
+        headers = {
+            'authorization': 'Bearer ' + config_dict["token"],
+            'X-Correlation-Id': cuid.cuid()
+        }
+
+        logger.debug("Endpoint url is {}".format( end_point))
 
         if file_name == 'data.json':
             data_file = os.path.abspath(
@@ -136,7 +155,7 @@ def pt(location, file_name, profile):
 
         with open(data_file) as f:
             result = requests.post(
-                endpoint, headers=headers, verify=False, data=f.read())
+                end_point, headers=headers, verify=False, data=f.read())
 
             if result.status_code != 200:
                 logger.debug("Post failed with result:{}".format(result))
